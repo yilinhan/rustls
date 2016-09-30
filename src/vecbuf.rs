@@ -1,5 +1,6 @@
 use std::io::Read;
 use std::io;
+use vecio;
 
 /// This is a byte buffer that is built from a vector
 /// of byte vectors.  This avoids extra copies when
@@ -48,20 +49,42 @@ impl ChunkVecBuffer {
     Ok(offs)
   }
 
+  fn consumed(&mut self, mut count: usize) {
+    while count > 0 && !self.is_empty() {
+      let toplen = self.chunks[0].len();
+
+      if toplen <= count {
+        self.chunks.remove(0);
+        count -= toplen;
+      } else {
+        self.chunks[0] = self.chunks[0].split_off(count);
+        count = 0;
+      }
+    }
+  }
+
+  pub fn writev_to(&mut self, wrv: &mut vecio::Rawv) -> io::Result<usize> {
+    if self.is_empty() {
+      return Ok(0);
+    }
+
+    let used = {
+      let chunksv = self.chunks.iter()
+        .map(|v| v.as_slice())
+        .collect::<Vec<&[u8]>>();
+      try!(wrv.writev(chunksv.as_slice()))
+    };
+    self.consumed(used);
+    return Ok(used);
+  }
+
   pub fn write_to(&mut self, wr: &mut io::Write) -> io::Result<usize> {
-    // would desperately like writev support here!
     if self.is_empty() {
       return Ok(0);
     }
 
     let used = try!(wr.write(&self.chunks[0]));
-
-    if used == self.chunks[0].len() {
-      self.chunks.remove(0);
-    } else {
-      self.chunks[0] = self.chunks[0].split_off(used);
-    }
-
+    self.consumed(used);
     return Ok(used);
   }
 }

@@ -17,6 +17,7 @@ use verify;
 use std::collections;
 use std::sync::{Arc, Mutex};
 use std::io;
+use vecio;
 
 /// A trait for the ability to generate Session IDs, and store
 /// server session data. The keys and values are opaque.
@@ -511,9 +512,12 @@ impl Session for ServerSession {
     self.imp.common.read_tls(rd)
   }
 
-  /// Writes TLS messages to `wr`.
   fn write_tls(&mut self, wr: &mut io::Write) -> io::Result<usize> {
     self.imp.common.write_tls(wr)
+  }
+
+  fn writev_tls(&mut self, wrv: &mut vecio::Rawv) -> io::Result<usize> {
+    self.imp.common.writev_tls(wrv)
   }
 
   fn process_new_packets(&mut self) -> Result<(), TLSError> {

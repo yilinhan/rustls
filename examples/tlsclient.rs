@@ -11,6 +11,8 @@ use std::fs;
 use std::collections;
 use std::io::{Read, Write, BufReader};
 
+extern crate vecio;
+
 extern crate env_logger;
 
 extern crate rustc_serialize;
@@ -155,7 +157,7 @@ impl TlsClient {
   }
 
   fn do_write(&mut self) {
-    self.tls_session.write_tls(&mut self.socket).unwrap();
+    self.tls_session.writev_tls(&mut self.socket).unwrap();
   }
 
   fn register(&self, event_loop: &mut mio::EventLoop<TlsClient>) {

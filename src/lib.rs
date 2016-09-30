@@ -173,6 +173,9 @@ extern crate untrusted;
 /* rust-base64 for pemfile module. */
 extern crate base64;
 
+/* vecio for vectored io. */
+extern crate vecio;
+
 /* log for logging (optional). */
 #[cfg(feature = "logging")]
 #[macro_use]

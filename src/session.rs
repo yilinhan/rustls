@@ -16,6 +16,7 @@ use rand;
 
 use std::io;
 use std::collections::VecDeque;
+use vecio;
 
 /// Generalises ClientSession and ServerSession
 pub trait Session : Read + Write {
@@ -32,6 +33,10 @@ pub trait Session : Read + Write {
 
   /// Writes TLS messages to `wr`.
   fn write_tls(&mut self, wr: &mut Write) -> Result<usize, io::Error>;
+
+  /// As `write_tls`, but use vectored writes to reduce copying/
+  /// system call overhead.
+  fn writev_tls(&mut self, wr: &mut vecio::Rawv) -> Result<usize, io::Error>;
 
   /// Processes any new packets read by a previous call to `read_tls`.
   /// Errors from this function relate to TLS protocol errors, and
@@ -54,7 +59,7 @@ pub trait Session : Read + Write {
   /// session is buffered in memory.
   fn is_handshaking(&self) -> bool;
 
-  /// Queues a close_notify fatal alert to be sent in the next
+  /// Queues a close_notify fatal alert to be sent in a later
   /// `write_tls` call.  This informs the peer that the
   /// connection is being closed.
   fn send_close_notify(&mut self);
@@ -320,6 +325,10 @@ impl SessionCommon {
 
   pub fn write_tls(&mut self, wr: &mut io::Write) -> io::Result<usize> {
     self.sendable_tls.write_to(wr)
+  }
+
+  pub fn writev_tls(&mut self, wrv: &mut vecio::Rawv) -> io::Result<usize> {
+    self.sendable_tls.writev_to(wrv)
   }
 
   /// Send plaintext application data, fragmenting and
