@@ -994,7 +994,6 @@ impl Codec for CertificatePayloadTLS13 {
   }
 
   fn read(r: &mut Reader) -> Option<CertificatePayloadTLS13> {
-    println!("CertificatePayloadTLS13: read");
     Some(CertificatePayloadTLS13 {
       request_context: try_ret!(PayloadU8::read(r)),
       list: try_ret!(codec::read_vec_u24::<CertificateEntry>(r))
@@ -1401,7 +1400,6 @@ impl Codec for HandshakeMessagePayload {
   }
 
   fn read(r: &mut Reader) -> Option<HandshakeMessagePayload> {
-    println!("read() for tls1.2");
     HandshakeMessagePayload::read_version(r, ProtocolVersion::TLSv1_2)
   }
 }
@@ -1417,8 +1415,6 @@ impl HandshakeMessagePayload {
     let typ = try_ret!(HandshakeType::read(r));
     let len = try_ret!(codec::read_u24(r)) as usize;
     let mut sub = try_ret!(r.sub(len));
-
-    println!("read_version for {:?} typ {:?} len {:?}", vers, typ, len);
 
     let payload = match typ {
       HandshakeType::HelloRequest if sub.left() == 0 =>
