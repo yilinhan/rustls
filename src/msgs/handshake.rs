@@ -1456,4 +1456,11 @@ impl HandshakeMessagePayload {
       Some(HandshakeMessagePayload { typ: typ, payload: payload })
     }
   }
+
+  pub fn build_key_update_notify() -> HandshakeMessagePayload {
+    HandshakeMessagePayload {
+      typ: HandshakeType::KeyUpdate,
+      payload: HandshakePayload::KeyUpdate(KeyUpdateRequest::UpdateNotRequested)
+    }
+  }
 }
