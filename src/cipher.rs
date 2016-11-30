@@ -273,7 +273,7 @@ impl MessageCipher for TLS13MessageCipher {
     Ok(Message {
       typ: ContentType::ApplicationData,
       version: ProtocolVersion::TLSv1_0,
-      payload: MessagePayload::opaque(buf)
+      payload: MessagePayload::opaque(buf.as_slice())
     })
   }
 
@@ -314,7 +314,7 @@ impl MessageCipher for TLS13MessageCipher {
     Ok(Message {
       typ: content_type,
       version: ProtocolVersion::TLSv1_3,
-      payload: MessagePayload::opaque(buf)
+      payload: MessagePayload::opaque(buf.as_slice())
     })
   }
 }
