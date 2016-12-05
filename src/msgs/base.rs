@@ -23,7 +23,7 @@ impl Payload {
   pub fn empty() -> Payload {
     Payload::new(Vec::with_capacity(2048))
   }
-  
+
   pub fn from_slice(data: &[u8]) -> Payload {
     let mut v = Vec::with_capacity(data.len()+5);
     v.extend_from_slice(data);

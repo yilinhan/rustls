@@ -259,6 +259,7 @@ pub struct ClientHandshakeData {
   pub client_auth_sigscheme: Option<SignatureScheme>,
   pub client_auth_cert: Option<CertificatePayload>,
   pub client_auth_key: Option<Arc<Box<sign::Signer + Send + Sync>>>,
+  pub client_auth_context: Option<Vec<u8>>,
   pub offered_key_shares: Vec<suites::KeyExchange>,
 }
 
@@ -281,6 +282,7 @@ impl ClientHandshakeData {
       client_auth_sigscheme: None,
       client_auth_cert: None,
       client_auth_key: None,
+      client_auth_context: None,
       offered_key_shares: Vec::new(),
     }
   }
@@ -291,6 +293,7 @@ pub enum ConnState {
   ExpectServerHello,
   ExpectEncryptedExtensions,
   ExpectCertificate,
+  ExpectCertificateOrCertReq,
   ExpectServerKX,
   ExpectCertificateVerify,
   ExpectServerHelloDoneOrCertRequest,
@@ -466,6 +469,7 @@ impl ClientSessionImpl {
       ConnState::ExpectServerHello => &client_hs::EXPECT_SERVER_HELLO,
       ConnState::ExpectEncryptedExtensions => &client_hs::EXPECT_ENCRYPTED_EXTENSIONS,
       ConnState::ExpectCertificate => &client_hs::EXPECT_CERTIFICATE,
+      ConnState::ExpectCertificateOrCertReq => &client_hs::EXPECT_CERTIFICATE_OR_CERTREQ,
       ConnState::ExpectServerKX => &client_hs::EXPECT_SERVER_KX,
       ConnState::ExpectCertificateVerify => &client_hs::EXPECT_CERTIFICATE_VERIFY,
       ConnState::ExpectServerHelloDoneOrCertRequest => &client_hs::EXPECT_DONE_OR_CERTREQ,

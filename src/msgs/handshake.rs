@@ -971,21 +971,30 @@ impl Codec for CertificateEntry {
   }
 }
 
+impl CertificateEntry {
+  pub fn new(cert: ASN1Cert) -> CertificateEntry {
+    CertificateEntry {
+      cert: cert,
+      exts: Vec::new()
+    }
+  }
+}
+
 #[derive(Debug)]
 pub struct CertificatePayloadTLS13 {
-  pub request_context: PayloadU8,
+  pub context: PayloadU8,
   pub list: Vec<CertificateEntry>
 }
 
 impl Codec for CertificatePayloadTLS13 {
   fn encode(&self, bytes: &mut Vec<u8>) {
-    self.request_context.encode(bytes);
+    self.context.encode(bytes);
     codec::encode_vec_u24(bytes, &self.list);
   }
 
   fn read(r: &mut Reader) -> Option<CertificatePayloadTLS13> {
     Some(CertificatePayloadTLS13 {
-      request_context: try_ret!(PayloadU8::read(r)),
+      context: try_ret!(PayloadU8::read(r)),
       list: try_ret!(codec::read_vec_u24::<CertificateEntry>(r))
     })
   }
@@ -994,7 +1003,7 @@ impl Codec for CertificatePayloadTLS13 {
 impl CertificatePayloadTLS13 {
   pub fn new() -> CertificatePayloadTLS13 {
     CertificatePayloadTLS13 {
-      request_context: PayloadU8::empty(),
+      context: PayloadU8::empty(),
       list: Vec::new()
     }
   }
@@ -1265,6 +1274,37 @@ impl Codec for CertificateRequestPayload {
   }
 }
 
+#[derive(Debug)]
+pub struct CertificateRequestPayloadTLS13 {
+  pub context: PayloadU8,
+  pub sigschemes: SupportedSignatureSchemes,
+  pub canames: DistinguishedNames,
+  pub extensions: CertificateExtensions
+}
+
+impl Codec for CertificateRequestPayloadTLS13 {
+  fn encode(&self, bytes: &mut Vec<u8>) {
+    self.context.encode(bytes);
+    self.sigschemes.encode(bytes);
+    self.canames.encode(bytes);
+    self.extensions.encode(bytes);
+  }
+
+  fn read(r: &mut Reader) -> Option<CertificateRequestPayloadTLS13> {
+    let context = try_ret!(PayloadU8::read(r));
+    let sigschemes = try_ret!(SupportedSignatureSchemes::read(r));
+    let canames = try_ret!(DistinguishedNames::read(r));
+    let extensions = try_ret!(CertificateExtensions::read(r));
+
+    Some(CertificateRequestPayloadTLS13 {
+      context: context,
+      sigschemes: sigschemes,
+      canames: canames,
+      extensions: extensions
+    })
+  }
+}
+
 /* -- NewSessionTicket -- */
 #[derive(Debug)]
 pub struct NewSessionTicketPayload {
@@ -1380,6 +1420,7 @@ pub enum HandshakePayload {
   CertificateTLS13(CertificatePayloadTLS13),
   ServerKeyExchange(ServerKeyExchangePayload),
   CertificateRequest(CertificateRequestPayload),
+  CertificateRequestTLS13(CertificateRequestPayloadTLS13),
   CertificateVerify(DigitallySignedStruct),
   ServerHelloDone,
   ClientKeyExchange(Payload),
@@ -1404,6 +1445,7 @@ impl HandshakePayload {
       HandshakePayload::ServerHelloDone => {},
       HandshakePayload::ClientKeyExchange(ref x) => x.encode(bytes),
       HandshakePayload::CertificateRequest(ref x) => x.encode(bytes),
+      HandshakePayload::CertificateRequestTLS13(ref x) => x.encode(bytes),
       HandshakePayload::CertificateVerify(ref x) => x.encode(bytes),
       HandshakePayload::NewSessionTicket(ref x) => x.encode(bytes),
       HandshakePayload::NewSessionTicketTLS13(ref x) => x.encode(bytes),
@@ -1469,6 +1511,8 @@ impl HandshakeMessagePayload {
         HandshakePayload::ServerHelloDone,
       HandshakeType::ClientKeyExchange =>
         HandshakePayload::ClientKeyExchange(try_ret!(Payload::read(&mut sub))),
+      HandshakeType::CertificateRequest if vers == ProtocolVersion::TLSv1_3  =>
+        HandshakePayload::CertificateRequestTLS13(try_ret!(CertificateRequestPayloadTLS13::read(&mut sub))),
       HandshakeType::CertificateRequest =>
         HandshakePayload::CertificateRequest(try_ret!(CertificateRequestPayload::read(&mut sub))),
       HandshakeType::CertificateVerify =>
