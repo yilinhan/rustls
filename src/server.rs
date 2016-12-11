@@ -332,7 +332,8 @@ pub enum ConnState {
   ExpectCCS,
   ExpectFinished,
   ExpectFinishedTLS13,
-  Traffic
+  TrafficTLS12,
+  TrafficTLS13
 }
 
 pub struct ServerSessionImpl {
@@ -377,7 +378,10 @@ impl ServerSessionImpl {
   }
 
   pub fn is_handshaking(&self) -> bool {
-    self.state != ConnState::Traffic
+    match self.state {
+      ConnState::TrafficTLS12 | ConnState::TrafficTLS13 => false,
+      _ => true
+    }
   }
 
   pub fn process_msg(&mut self, mut msg: Message) -> Result<(), TLSError> {
@@ -420,7 +424,7 @@ impl ServerSessionImpl {
   }
 
   pub fn process_main_protocol(&mut self, msg: Message) -> Result<(), TLSError> {
-    if self.state == ConnState::Traffic && msg.is_handshake_type(HandshakeType::ClientHello) {
+    if self.state == ConnState::TrafficTLS12 && msg.is_handshake_type(HandshakeType::ClientHello) {
       self.common.send_warning_alert(AlertDescription::NoRenegotiation);
       return Ok(());
     }
@@ -431,7 +435,7 @@ impl ServerSessionImpl {
     let new_state = try!((handler.handle)(self, msg));
     self.state = new_state;
 
-    if self.state == ConnState::Traffic && !self.common.traffic {
+    if !self.is_handshaking() && !self.common.traffic {
       self.common.start_traffic();
     }
 
@@ -449,7 +453,8 @@ impl ServerSessionImpl {
       ConnState::ExpectCCS => &server_hs::EXPECT_CCS,
       ConnState::ExpectFinished => &server_hs::EXPECT_FINISHED,
       ConnState::ExpectFinishedTLS13 => &server_hs::EXPECT_FINISHED_TLS13,
-      ConnState::Traffic => &server_hs::TRAFFIC
+      ConnState::TrafficTLS12 => &server_hs::TRAFFIC_TLS12,
+      ConnState::TrafficTLS13 => &server_hs::TRAFFIC_TLS13
     }
   }
 
