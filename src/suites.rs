@@ -1,4 +1,5 @@
-use msgs::enums::{CipherSuite, HashAlgorithm, SignatureAlgorithm, SignatureScheme, NamedGroup};
+use msgs::enums::{CipherSuite, HashAlgorithm, SignatureAlgorithm, SignatureScheme};
+use msgs::enums::{NamedGroup, ProtocolVersion};
 use msgs::handshake::{KeyExchangeAlgorithm};
 use msgs::handshake::SupportedSignatureSchemes;
 use msgs::handshake::DecomposedSignatureScheme;
@@ -180,6 +181,14 @@ impl SupportedCipherSuite {
   pub fn key_block_len(&self) -> usize {
     (self.enc_key_len + self.fixed_iv_len) * 2 + self.explicit_nonce_len
   }
+
+  fn usable_for_tls13(&self) -> bool {
+    self.sign == SignatureAlgorithm::Anonymous
+  }
+
+  fn usable_for_tls12(&self) -> bool {
+    self.sign != SignatureAlgorithm::Anonymous
+  }
 }
 
 pub static TLS_ECDHE_ECDSA_WITH_CHACHA20_POLY1305_SHA256: SupportedCipherSuite =
@@ -337,6 +346,22 @@ pub fn reduce_given_sigalg(all: &[&'static SupportedCipherSuite], sigalg: &Signa
      .filter(|&&suite| suite.sign == SignatureAlgorithm::Anonymous || &suite.sign == sigalg)
      .cloned()
      .collect()
+}
+
+/// Return a list of the ciphersuites in `all` with the suites
+/// incompatible with the chosen `version` removed.
+pub fn reduce_given_version(all: &[&'static SupportedCipherSuite],
+                            version: ProtocolVersion) -> Vec<&'static SupportedCipherSuite> {
+  all.iter()
+    .filter(|&&suite| {
+              match version {
+                ProtocolVersion::TLSv1_2 => suite.usable_for_tls12(),
+                ProtocolVersion::TLSv1_3 => suite.usable_for_tls13(),
+                _ => false
+              }
+            })
+    .cloned()
+    .collect()
 }
 
 #[cfg(test)]

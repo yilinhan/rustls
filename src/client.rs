@@ -5,7 +5,7 @@ use suites::{SupportedCipherSuite, ALL_CIPHERSUITES};
 use msgs::handshake::{CertificatePayload, DigitallySignedStruct, SessionID};
 use msgs::handshake::{DistinguishedNames, SupportedSignatureSchemes};
 use msgs::enums::SignatureScheme;
-use msgs::enums::ContentType;
+use msgs::enums::{ContentType, ProtocolVersion};
 use msgs::message::Message;
 use msgs::persist;
 use client_hs;
@@ -179,7 +179,11 @@ pub struct ClientConfig {
   /// effect.
   ///
   /// The default is true.
-  pub enable_tickets: bool
+  pub enable_tickets: bool,
+
+  /// Supported versions, in no particular order.  The default
+  /// is all supported versions.
+  pub versions: Vec<ProtocolVersion>
 }
 
 impl ClientConfig {
@@ -194,7 +198,8 @@ impl ClientConfig {
       session_persistence: Mutex::new(Box::new(NoSessionStorage {})),
       mtu: None,
       client_auth_cert_resolver: Box::new(FailResolveClientCert {}),
-      enable_tickets: true
+      enable_tickets: true,
+      versions: vec![ ProtocolVersion::TLSv1_3, ProtocolVersion::TLSv1_2 ]
     }
   }
 
@@ -427,10 +432,6 @@ impl ClientSessionImpl {
     self.common.send_fatal_alert(AlertDescription::UnexpectedMessage);
   }
 
-  fn is_hello_req(&self, msg: &Message) -> bool {
-    msg.is_handshake_type(HandshakeType::HelloRequest)
-  }
-
   /// Detect and drop/reject HelloRequests.  This is needed irrespective
   /// of the current protocol state, which should illustrate how badly
   /// TLS renegotiation is designed.
@@ -445,7 +446,7 @@ impl ClientSessionImpl {
   /// Process `msg`.  First, we get the current `Handler`.  Then we ask what
   /// that Handler expects.  Finally, we ask the handler to handle the message.
   fn process_main_protocol(&mut self, msg: Message) -> Result<(), TLSError> {
-    if self.is_hello_req(&msg) {
+    if msg.is_handshake_type(HandshakeType::HelloRequest) {
       self.process_hello_req();
       return Ok(());
     }
@@ -513,6 +514,19 @@ impl ClientSessionImpl {
   pub fn get_alpn_protocol(&self) -> Option<String> {
     self.alpn_protocol.clone()
   }
+
+  pub fn get_protocol_version(&self) -> Option<ProtocolVersion> {
+    match self.state {
+      ConnState::ExpectServerHello => None,
+      _ => {
+        if self.common.is_tls13 {
+          Some(ProtocolVersion::TLSv1_3)
+        } else {
+          Some(ProtocolVersion::TLSv1_2)
+        }
+      }
+    }
+  }
 }
 
 /// This represents a single TLS client session.
@@ -567,6 +581,10 @@ impl Session for ClientSession {
 
   fn get_alpn_protocol(&self) -> Option<String> {
     self.imp.get_alpn_protocol()
+  }
+
+  fn get_protocol_version(&self) -> Option<ProtocolVersion> {
+    self.imp.get_protocol_version()
   }
 }
 

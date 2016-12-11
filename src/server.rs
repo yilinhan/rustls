@@ -1,7 +1,7 @@
 use session::{Session, SessionRandoms, SessionSecrets, SessionCommon};
 use suites::{SupportedCipherSuite, ALL_CIPHERSUITES, KeyExchange};
 use msgs::enums::ContentType;
-use msgs::enums::{AlertDescription, HandshakeType};
+use msgs::enums::{AlertDescription, HandshakeType, ProtocolVersion};
 use msgs::handshake::{SessionID, CertificatePayload};
 use msgs::handshake::{ServerNameRequest, SupportedSignatureSchemes};
 use msgs::message::Message;
@@ -121,7 +121,11 @@ pub struct ServerConfig {
 
   /// Whether to complete handshakes with clients which
   /// don't do client auth.
-  pub client_auth_mandatory: bool
+  pub client_auth_mandatory: bool,
+
+  /// Supported protocol versions, in no particular order.
+  /// The default is all supported versions.
+  pub versions: Vec<ProtocolVersion>
 }
 
 /// Something which never stores sessions.
@@ -245,7 +249,8 @@ impl ServerConfig {
       cert_resolver: Box::new(FailResolveChain {}),
       client_auth_roots: verify::RootCertStore::empty(),
       client_auth_offer: false,
-      client_auth_mandatory: false
+      client_auth_mandatory: false,
+      versions: vec![ ProtocolVersion::TLSv1_3, ProtocolVersion::TLSv1_2 ]
     }
   }
 
@@ -481,6 +486,19 @@ impl ServerSessionImpl {
   pub fn get_alpn_protocol(&self) -> Option<String> {
     self.alpn_protocol.clone()
   }
+
+  pub fn get_protocol_version(&self) -> Option<ProtocolVersion> {
+    match self.state {
+      ConnState::ExpectClientHello => None,
+      _ => {
+        if self.common.is_tls13 {
+          Some(ProtocolVersion::TLSv1_3)
+        } else {
+          Some(ProtocolVersion::TLSv1_2)
+        }
+      }
+    }
+  }
 }
 
 /// This represents a single TLS server session.
@@ -536,6 +554,10 @@ impl Session for ServerSession {
 
   fn get_alpn_protocol(&self) -> Option<String> {
     self.imp.get_alpn_protocol()
+  }
+
+  fn get_protocol_version(&self) -> Option<ProtocolVersion> {
+    self.imp.get_protocol_version()
   }
 }
 
