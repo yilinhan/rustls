@@ -67,4 +67,5 @@ fn test_enums() {
   test_enum16::<SignatureScheme>(SignatureScheme::RSA_PKCS1_SHA1, SignatureScheme::ED448);
   test_enum8::<PSKKeyExchangeMode>(PSKKeyExchangeMode::PSK_KE, PSKKeyExchangeMode::PSK_DHE_KE);
   test_enum8::<KeyUpdateRequest>(KeyUpdateRequest::UpdateNotRequested, KeyUpdateRequest::UpdateRequested);
+  test_enum8::<PskKeyExchangeMode>(PskKeyExchangeMode::KE, PskKeyExchangeMode::DHE_KE);
 }
