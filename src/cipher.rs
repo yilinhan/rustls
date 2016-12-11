@@ -300,14 +300,14 @@ impl MessageCipher for TLS13MessageCipher {
 
     buf.truncate(plain_len);
 
-    if plain_len > MAX_FRAGMENT_LEN {
-      let msg = "peer sent oversized fragment".to_string();
-      return Err(TLSError::PeerMisbehavedError(msg));
-    }
-
     let content_type = unpad_tls13(&mut buf);
     if content_type == ContentType::Unknown(0) {
       let msg = "peer sent bad TLSInnerPlaintext".to_string();
+      return Err(TLSError::PeerMisbehavedError(msg));
+    }
+
+    if buf.len() > MAX_FRAGMENT_LEN {
+      let msg = "peer sent oversized fragment".to_string();
       return Err(TLSError::PeerMisbehavedError(msg));
     }
 
