@@ -236,11 +236,11 @@ struct AlwaysResolvesChain {
 
 impl AlwaysResolvesChain {
     fn new_rsa(chain: Vec<key::Certificate>, priv_key: &key::PrivateKey) -> AlwaysResolvesChain {
-        let key = sign::RSASigner::new(priv_key)
+        let key = sign::any_supported_type(priv_key)
             .expect("Invalid RSA private key");
         AlwaysResolvesChain {
             chain: chain,
-            key: Arc::new(Box::new(key)),
+            key: Arc::new(key),
         }
     }
 }
