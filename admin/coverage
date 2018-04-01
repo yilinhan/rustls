@@ -74,7 +74,7 @@ for test in 'api badssl bugs client_suites curves errors features server_suites 
     run(test)
 
 # trytls/bogo
-#sh('cd trytls && ./runme')
+sh('cd trytls && ./runme')
 sh('cd bogo && ./runme')
 all_infos.append(lcov('tests.info'))
 
