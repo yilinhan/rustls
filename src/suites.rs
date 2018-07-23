@@ -8,14 +8,20 @@ use msgs::codec::{Reader, Codec};
 use ring;
 use untrusted;
 
+/// Bulk symmetric encryption scheme used by a cipher suite.
 #[allow(non_camel_case_types)]
 #[cfg_attr(feature = "logging", derive(Debug))]
 pub enum BulkAlgorithm {
     #[cfg(feature = "aesgcm")]
+    /// AES with 128-bit keys in Galois counter mode.
     AES_128_GCM,
+
     #[cfg(feature = "aesgcm")]
+    /// AES with 256-bit keys in Galois counter mode.
     AES_256_GCM,
+
     #[cfg(feature = "chachapoly")]
+    /// Chacha20 for confidentiality with poly1305 for authenticity.
     CHACHA20_POLY1305,
 }
 

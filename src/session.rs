@@ -136,6 +136,13 @@ pub trait Session: quic::QuicExt + Read + Write + Send + Sync {
     /// This returns None until the ciphersuite is agreed.
     fn get_negotiated_ciphersuite(&self) -> Option<&'static SupportedCipherSuite>;
 
+    /// Returns True if the client is ready to send early data
+    fn is_in_early_data(&self) -> bool;
+
+    /// Returns True if the handshake is completed and the server intends
+    /// to process early data.
+    fn is_early_data_accepted(&self) -> bool;
+
     /// This function uses `io` to complete any outstanding IO for
     /// this session.
     ///
@@ -385,6 +392,10 @@ pub struct SessionCommon {
     pub peer_encrypting: bool,
     pub we_encrypting: bool,
     pub traffic: bool,
+    pub use_early_data: bool,
+    pub early_traffic: bool,
+    pub early_data_accepted: bool,
+    pub max_early_data_limit: u32,
     pub want_write_key_update: bool,
     pub message_deframer: MessageDeframer,
     pub handshake_joiner: HandshakeJoiner,
@@ -410,6 +421,10 @@ impl SessionCommon {
             peer_encrypting: false,
             we_encrypting: false,
             traffic: false,
+            use_early_data: false,
+            early_traffic: false,
+            early_data_accepted: false,
+            max_early_data_limit: 0,
             want_write_key_update: false,
             message_deframer: MessageDeframer::new(),
             handshake_joiner: HandshakeJoiner::new(),
@@ -662,7 +677,7 @@ impl SessionCommon {
 
 
     fn send_plain(&mut self, data: &[u8], limit: Limit) -> io::Result<usize> {
-        if !self.traffic {
+        if !self.traffic && !self.early_traffic {
             // If we haven't completed handshaking, buffer
             // plaintext to send once we do.
             let len = match limit {
@@ -679,6 +694,20 @@ impl SessionCommon {
             return Ok(0);
         }
 
+        if self.early_traffic {
+            // Check if the plaintext exceeds max_early_data_size
+            let max_early_data_limit = self.max_early_data_limit as usize;
+            if data.len() <= max_early_data_limit {
+                self.max_early_data_limit -= data.len() as u32;
+            } else {
+                self.max_early_data_limit = 0;
+                let _ = self.send_appdata_encrypt(&data[..max_early_data_limit], limit);
+                // Push the unsent partial buffer back to the front of sendable_plaintext
+                self.sendable_plaintext.push_front_copy(&data[max_early_data_limit..]);
+                return Err(io::Error::new(io::ErrorKind::Other,
+                                          "Early data exceeds max_early_data_size"));
+            }
+        }
         Ok(self.send_appdata_encrypt(data, limit))
     }
 
@@ -690,7 +719,7 @@ impl SessionCommon {
     /// Send any buffered plaintext.  Plaintext is buffered if
     /// written during handshake.
     pub fn flush_plaintext(&mut self) {
-        if !self.traffic {
+        if !self.traffic && !self.early_traffic {
             return;
         }
 
@@ -751,9 +780,7 @@ impl SessionCommon {
 
     pub fn send_warning_alert(&mut self, desc: AlertDescription) {
         warn!("Sending warning alert {:?}", desc);
-        let m = Message::build_alert(AlertLevel::Warning, desc);
-        let enc = self.we_encrypting;
-        self.send_msg(m, enc);
+        self.send_warning_alert_no_log(desc);
     }
 
     pub fn send_fatal_alert(&mut self, desc: AlertDescription) {
@@ -764,7 +791,8 @@ impl SessionCommon {
     }
 
     pub fn send_close_notify(&mut self) {
-        self.send_warning_alert(AlertDescription::CloseNotify)
+        info!("Sending warning alert {:?}", AlertDescription::CloseNotify);
+        self.send_warning_alert_no_log(AlertDescription::CloseNotify);
     }
 
     #[cfg(feature = "tls13")]
@@ -824,5 +852,11 @@ impl SessionCommon {
                 })
                 .ok_or_else(|| TLSError::HandshakeNotComplete)
         }
+    }
+
+    fn send_warning_alert_no_log(&mut self, desc: AlertDescription) {
+        let m = Message::build_alert(AlertLevel::Warning, desc);
+        let enc = self.we_encrypting;
+        self.send_msg(m, enc);
     }
 }
