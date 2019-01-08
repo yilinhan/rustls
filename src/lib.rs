@@ -218,6 +218,21 @@ extern crate sct;
 // rust-base64 for pemfile module.
 extern crate base64;
 
+#[cfg(feature = "sgx")]
+extern crate serde_json;
+
+#[cfg(feature = "sgx")]
+extern crate chrono;
+
+#[cfg(feature = "sgx")]
+// sgx_types for parsing SGX attestation reports
+extern crate sgx_types;
+
+// memoffset for calculating the offset inside sgx types
+#[cfg(feature = "sgx")]
+#[macro_use]
+extern crate memoffset;
+
 // log for logging (optional).
 #[cfg(feature = "logging")]
 #[macro_use]
@@ -322,4 +337,7 @@ pub use verify::{ServerCertVerifier, ServerCertVerified,
     ClientCertVerifier, ClientCertVerified};
 #[cfg(feature = "dangerous_configuration")]
 pub use client::danger::DangerousClientConfig;
+
+#[cfg(feature = "sgx")]
+pub use verify::sgx_verifier::SgxVerifierBuilder;
 
