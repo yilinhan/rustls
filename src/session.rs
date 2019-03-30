@@ -1,5 +1,6 @@
 use ring;
 use std::io::{Read, Write};
+use std::sync::Mutex;
 use crate::msgs::message::{BorrowMessage, Message, MessagePayload};
 use crate::msgs::deframer::MessageDeframer;
 use crate::msgs::fragmenter::{MessageFragmenter, MAX_FRAGMENT_LEN};
@@ -425,6 +426,8 @@ pub struct SessionCommon {
     pub protocol: Protocol,
     #[cfg(feature = "quic")]
     pub(crate) quic: Quic,
+    rlock: Mutex<bool>,
+    wlock: Mutex<bool>,
 }
 
 impl SessionCommon {
@@ -455,6 +458,8 @@ impl SessionCommon {
             protocol: Protocol::Tls13,
             #[cfg(feature = "quic")]
             quic: Quic::new(),
+            rlock: Mutex::new(false),
+            wlock: Mutex::new(false),
         }
     }
 
@@ -678,11 +683,19 @@ impl SessionCommon {
     /// buffering, so `rd` can supply TLS messages in arbitrary-
     /// sized chunks (like a socket or pipe might).
     pub fn read_tls(&mut self, rd: &mut Read) -> io::Result<usize> {
-        self.message_deframer.read(rd)
+        let mut rlock = self.rlock.lock().unwrap();
+        *rlock = true;
+        let ret = self.message_deframer.read(rd);
+        *rlock = false;
+        ret
     }
 
     pub fn write_tls(&mut self, wr: &mut Write) -> io::Result<usize> {
-        self.sendable_tls.write_to(wr)
+        let mut wlock = self.wlock.lock().unwrap();
+        *wlock = true;
+        let ret = self.sendable_tls.write_to(wr);
+        *wlock = false;
+        ret
     }
 
     pub fn writev_tls(&mut self, wr: &mut WriteV) -> io::Result<usize> {
