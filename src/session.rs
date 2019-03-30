@@ -765,7 +765,10 @@ impl SessionCommon {
 
     // Put m into sendable_tls for writing.
     fn queue_tls_message(&mut self, m: Message) {
+        let mut wlock = self.wlock.lock().unwrap();
+        *wlock = true;
         self.sendable_tls.append(m.get_encoding());
+        *wlock = false;
     }
 
     /// Send a raw TLS message, fragmenting it if needed.
