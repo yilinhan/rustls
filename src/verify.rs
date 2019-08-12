@@ -533,8 +533,7 @@ pub mod sgx_verifier {
                               presented_certs: &[Certificate],
                               _dns_name: webpki::DNSNameRef,
                               _ocsp_response: &[u8]) -> Result<ServerCertVerified, TLSError> {
-            let cert_der = untrusted::Input::from(&presented_certs[0].0);
-            let cert = webpki::EndEntityCert::from(cert_der).map_err(TLSError::WebPKIError)?;
+            let cert = webpki::EndEntityCert::from(&presented_certs[0].0).map_err(TLSError::WebPKIError)?;
             let now = (self.time)()?;
             cert.verify_is_valid_sgx_attestation_report(SUPPORTED_SIG_ALGS, now, |cert, input| {
                 let report_bytes = input.as_slice_less_safe();
