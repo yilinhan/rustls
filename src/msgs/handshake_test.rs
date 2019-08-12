@@ -358,8 +358,8 @@ fn get_sample_clienthellopayload() -> ClientHelloPayload {
         compression_methods: vec![ Compression::Null ],
         extensions: vec![
             ClientExtension::ECPointFormats(ECPointFormatList::supported()),
-            ClientExtension::NamedGroups(NamedGroups::supported()),
-            ClientExtension::SignatureAlgorithms(SupportedSignatureSchemes::supported_verify()),
+            ClientExtension::NamedGroups(vec![ NamedGroup::X25519 ]),
+            ClientExtension::SignatureAlgorithms(vec![ SignatureScheme::ECDSA_NISTP256_SHA256 ]),
             ClientExtension::make_sni(DNSNameRef::try_from_ascii_str("hello").unwrap()),
             ClientExtension::SessionTicketRequest,
             ClientExtension::SessionTicketOffer(Payload(vec![])),
@@ -572,7 +572,7 @@ fn server_get_supported_versions() {
 }
 
 fn test_cert_extension_getter(typ: ExtensionType, getter: fn(&CertificateEntry) -> bool) {
-    let mut ce = get_sample_certificatepayloadtls13().list.remove(0);
+    let mut ce = get_sample_certificatepayloadtls13().entries.remove(0);
     let mut exts = mem::replace(&mut ce.exts, vec![]);
     exts.retain(|ext| ext.get_type() == typ);
 
@@ -660,7 +660,7 @@ fn get_sample_helloretryrequest() -> HelloRetryRequest {
 fn get_sample_certificatepayloadtls13() -> CertificatePayloadTLS13 {
     CertificatePayloadTLS13 {
         context: PayloadU8(vec![ 1, 2, 3 ]),
-        list: vec![
+        entries: vec![
             CertificateEntry {
                 cert: Certificate(vec![ 3, 4, 5]),
                 exts: vec![
@@ -701,7 +701,7 @@ fn get_sample_serverkeyexchangepayload_unknown() -> ServerKeyExchangePayload {
 fn get_sample_certificaterequestpayload() -> CertificateRequestPayload {
     CertificateRequestPayload {
         certtypes: vec![ ClientCertificateType::RSASign ],
-        sigschemes: SupportedSignatureSchemes::supported_verify(),
+        sigschemes: vec![ SignatureScheme::ECDSA_NISTP256_SHA256 ],
         canames: vec![ PayloadU16(vec![ 1, 2, 3 ]) ]
     }
 }
@@ -710,7 +710,7 @@ fn get_sample_certificaterequestpayloadtls13() -> CertificateRequestPayloadTLS13
     CertificateRequestPayloadTLS13 {
         context: PayloadU8(vec![ 1, 2, 3 ]),
         extensions: vec![
-            CertReqExtension::SignatureAlgorithms(SupportedSignatureSchemes::supported_verify()),
+            CertReqExtension::SignatureAlgorithms(vec![ SignatureScheme::ECDSA_NISTP256_SHA256 ]),
             CertReqExtension::AuthorityNames(vec![ PayloadU16(vec![ 1, 2, 3 ]) ]),
             CertReqExtension::Unknown(UnknownExtension {
                 typ: ExtensionType::Unknown(12345),

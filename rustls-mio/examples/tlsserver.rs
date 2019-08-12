@@ -25,7 +25,6 @@ use rustls::{RootCertStore, Session, NoClientAuth, AllowAnyAuthenticatedClient,
              AllowAnyAnonymousOrAuthenticatedClient};
 
 mod util;
-use crate::util::WriteVAdapter;
 
 // Token for our listening socket.
 const LISTENER: mio::Token = mio::Token(0);
@@ -177,10 +176,10 @@ impl Connection {
         }
 
         if ev.readiness().is_writable() {
-            self.do_tls_write();
+            self.do_tls_write_and_handle_error();
         }
 
-        if self.closing && !self.tls_session.wants_write() {
+        if self.closing {
             let _ = self.socket.shutdown(Shutdown::Both);
             self.close_back();
             self.closed = true;
@@ -223,6 +222,10 @@ impl Connection {
         let processed = self.tls_session.process_new_packets();
         if processed.is_err() {
             error!("cannot process packet: {:?}", processed);
+
+            // last gasp write to send any alerts
+            self.do_tls_write_and_handle_error();
+
             self.closing = true;
             return;
         }
@@ -303,8 +306,19 @@ impl Connection {
         }
     }
 
-    fn do_tls_write(&mut self) {
-        let rc = self.tls_session.writev_tls(&mut WriteVAdapter::new(&mut self.socket));
+    #[cfg(target_os = "windows")]
+    fn tls_write(&mut self) -> io::Result<usize> {
+        self.tls_session.write_tls(&mut self.socket)
+    }
+
+    #[cfg(not(target_os = "windows"))]
+    fn tls_write(&mut self) -> io::Result<usize> {
+        use crate::util::WriteVAdapter;
+        self.tls_session.writev_tls(&mut WriteVAdapter::new(&mut self.socket))
+    }
+
+    fn do_tls_write_and_handle_error(&mut self) {
+        let rc = self.tls_write();
         if rc.is_err() {
             error!("write failed {:?}", rc);
             self.closing = true;
@@ -583,7 +597,7 @@ fn main() {
 
     if args.flag_verbose {
         env_logger::Builder::new()
-            .parse("trace")
+            .parse_filters("trace")
             .init();
     }
 

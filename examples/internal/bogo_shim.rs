@@ -424,6 +424,7 @@ fn handle_err(err: rustls::TLSError) -> ! {
         }
         TLSError::AlertReceived(AlertDescription::HandshakeFailure) => quit(":HANDSHAKE_FAILURE:"),
         TLSError::AlertReceived(AlertDescription::ProtocolVersion) => quit(":WRONG_VERSION:"),
+        TLSError::AlertReceived(AlertDescription::InternalError) => quit(":PEER_ALERT_INTERNAL_ERROR:"),
         TLSError::CorruptMessagePayload(ContentType::Alert) => quit(":BAD_ALERT:"),
         TLSError::CorruptMessagePayload(ContentType::ChangeCipherSpec) => {
             quit(":BAD_CHANGE_CIPHER_SPEC:")
@@ -523,7 +524,12 @@ fn exec(opts: &Options, mut sess: ClientOrServer, count: usize) {
         }
     }
 
-    let mut conn = net::TcpStream::connect(("localhost", opts.port)).expect("cannot connect");
+    let addrs = [
+        net::SocketAddr::from((net::Ipv4Addr::LOCALHOST, opts.port)),
+        net::SocketAddr::from((net::Ipv6Addr::LOCALHOST, opts.port))
+    ];
+    let mut conn = net::TcpStream::connect(&addrs[..])
+        .expect("cannot connect");
     let mut sent_shutdown = false;
     let mut seen_eof = false;
     let mut sent_exporter = false;

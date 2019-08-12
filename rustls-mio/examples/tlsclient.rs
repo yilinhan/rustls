@@ -25,7 +25,6 @@ use ct_logs;
 
 
 mod util;
-use crate::util::WriteVAdapter;
 
 use rustls::Session;
 
@@ -103,7 +102,11 @@ impl TlsClient {
         // is broken.
         let rc = self.tls_session.read_tls(&mut self.socket);
         if rc.is_err() {
-            println!("TLS read error: {:?}", rc);
+            let error = rc.unwrap_err();
+            if error.kind() == io::ErrorKind::WouldBlock {
+                return;
+            }
+            println!("TLS read error: {:?}", error);
             self.closing = true;
             return;
         }
@@ -147,7 +150,14 @@ impl TlsClient {
         }
     }
 
+    #[cfg(target_os = "windows")]
     fn do_write(&mut self) {
+        self.tls_session.write_tls(&mut self.socket).unwrap();
+    }
+
+    #[cfg(not(target_os = "windows"))]
+    fn do_write(&mut self) {
+        use crate::util::WriteVAdapter;
         self.tls_session.writev_tls(&mut WriteVAdapter::new(&mut self.socket)).unwrap();
     }
 
@@ -519,7 +529,7 @@ fn main() {
 
     if args.flag_verbose {
         env_logger::Builder::new()
-            .parse("trace")
+            .parse_filters("trace")
             .init();
     }
 
@@ -533,7 +543,7 @@ fn main() {
     let mut tlsclient = TlsClient::new(sock, dns_name, config);
 
     if args.flag_http {
-        let httpreq = format!("GET / HTTP/1.1\r\nHost: {}\r\nConnection: \
+        let httpreq = format!("GET / HTTP/1.0\r\nHost: {}\r\nConnection: \
                                close\r\nAccept-Encoding: identity\r\n\r\n",
                               args.arg_hostname);
         tlsclient.write_all(httpreq.as_bytes()).unwrap();

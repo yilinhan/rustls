@@ -6,7 +6,6 @@ use crate::msgs::handshake::{ClientECDHParams, ServerECDHParams};
 use crate::msgs::codec::{Reader, Codec};
 
 use ring;
-use untrusted;
 
 /// Bulk symmetric encryption scheme used by a cipher suite.
 #[allow(non_camel_case_types)]
@@ -55,6 +54,15 @@ impl KeyExchange {
         }
     }
 
+    pub fn supported_groups() -> &'static [NamedGroup] {
+        // in preference order
+        &[
+            NamedGroup::X25519,
+            NamedGroup::secp384r1,
+            NamedGroup::secp256r1
+        ]
+    }
+
     pub fn client_ecdhe(kx_params: &[u8]) -> Option<KeyExchangeResult> {
         let mut rd = Reader::init(kx_params);
         let ecdh_params = ServerECDHParams::read(&mut rd)?;
@@ -98,9 +106,9 @@ impl KeyExchange {
     }
 
     pub fn complete(self, peer: &[u8]) -> Option<KeyExchangeResult> {
+        let peer_key = ring::agreement::UnparsedPublicKey::new(self.alg, peer);
         let secret = ring::agreement::agree_ephemeral(self.privkey,
-                                                      self.alg,
-                                                      untrusted::Input::from(peer),
+                                                      &peer_key,
                                                       (),
                                                       |v| {
                                                           let mut r = Vec::new();
@@ -154,6 +162,8 @@ pub struct SupportedCipherSuite {
     /// in a deterministic and safe way.  GCM needs this,
     /// chacha20poly1305 works this way by design.
     pub explicit_nonce_len: usize,
+
+    pub(crate) hkdf_algorithm: ring::hkdf::Algorithm,
 }
 
 impl PartialEq for SupportedCipherSuite {
@@ -165,13 +175,7 @@ impl PartialEq for SupportedCipherSuite {
 impl SupportedCipherSuite {
     /// Which hash function to use with this suite.
     pub fn get_hash(&self) -> &'static ring::digest::Algorithm {
-        match self.hash {
-            HashAlgorithm::SHA1 => &ring::digest::SHA1,
-            HashAlgorithm::SHA256 => &ring::digest::SHA256,
-            HashAlgorithm::SHA384 => &ring::digest::SHA384,
-            HashAlgorithm::SHA512 => &ring::digest::SHA512,
-            _ => unreachable!(),
-        }
+        self.hkdf_algorithm.hmac_algorithm().digest_algorithm()
     }
 
     /// We have parameters and a verified public key in `kx_params`.
@@ -280,6 +284,7 @@ pub static TLS_ECDHE_ECDSA_WITH_CHACHA20_POLY1305_SHA256: SupportedCipherSuite =
         enc_key_len: 32,
         fixed_iv_len: 12,
         explicit_nonce_len: 0,
+        hkdf_algorithm: ring::hkdf::HKDF_SHA256,
     };
 
 #[cfg(feature = "chachapoly")]
@@ -293,6 +298,7 @@ pub static TLS_ECDHE_RSA_WITH_CHACHA20_POLY1305_SHA256: SupportedCipherSuite =
         enc_key_len: 32,
         fixed_iv_len: 12,
         explicit_nonce_len: 0,
+        hkdf_algorithm: ring::hkdf::HKDF_SHA256,
     };
 
 #[cfg(feature = "aesgcm")]
@@ -305,6 +311,7 @@ pub static TLS_ECDHE_RSA_WITH_AES_128_GCM_SHA256: SupportedCipherSuite = Support
     enc_key_len: 16,
     fixed_iv_len: 4,
     explicit_nonce_len: 8,
+    hkdf_algorithm: ring::hkdf::HKDF_SHA256,
 };
 
 #[cfg(feature = "aesgcm")]
@@ -317,6 +324,7 @@ pub static TLS_ECDHE_RSA_WITH_AES_256_GCM_SHA384: SupportedCipherSuite = Support
     enc_key_len: 32,
     fixed_iv_len: 4,
     explicit_nonce_len: 8,
+    hkdf_algorithm: ring::hkdf::HKDF_SHA384,
 };
 
 #[cfg(all(feature = "aesgcm", feature = "ecdsa"))]
@@ -329,6 +337,7 @@ pub static TLS_ECDHE_ECDSA_WITH_AES_128_GCM_SHA256: SupportedCipherSuite = Suppo
     enc_key_len: 16,
     fixed_iv_len: 4,
     explicit_nonce_len: 8,
+    hkdf_algorithm: ring::hkdf::HKDF_SHA256,
 };
 
 #[cfg(all(feature = "aesgcm", feature = "ecdsa"))]
@@ -341,6 +350,7 @@ pub static TLS_ECDHE_ECDSA_WITH_AES_256_GCM_SHA384: SupportedCipherSuite = Suppo
     enc_key_len: 32,
     fixed_iv_len: 4,
     explicit_nonce_len: 8,
+    hkdf_algorithm: ring::hkdf::HKDF_SHA384,
 };
 
 #[cfg(all(feature = "chachapoly", feature = "tls13"))]
@@ -353,6 +363,7 @@ pub static TLS13_CHACHA20_POLY1305_SHA256: SupportedCipherSuite = SupportedCiphe
     enc_key_len: 32,
     fixed_iv_len: 12,
     explicit_nonce_len: 0,
+    hkdf_algorithm: ring::hkdf::HKDF_SHA256,
 };
 
 #[cfg(all(feature = "aesgcm", feature = "tls13"))]
@@ -365,6 +376,7 @@ pub static TLS13_AES_256_GCM_SHA384: SupportedCipherSuite = SupportedCipherSuite
     enc_key_len: 32,
     fixed_iv_len: 12,
     explicit_nonce_len: 0,
+    hkdf_algorithm: ring::hkdf::HKDF_SHA384,
 };
 
 #[cfg(all(feature = "aesgcm", feature = "tls13"))]
@@ -377,6 +389,7 @@ pub static TLS13_AES_128_GCM_SHA256: SupportedCipherSuite = SupportedCipherSuite
     enc_key_len: 16,
     fixed_iv_len: 12,
     explicit_nonce_len: 0,
+    hkdf_algorithm: ring::hkdf::HKDF_SHA256,
 };
 
 /// A list of all the cipher suites supported by rustls.
@@ -525,10 +538,10 @@ pub fn choose_ciphersuite_preferring_server(client_suites: &[CipherSuite],
 /// Return a list of the ciphersuites in `all` with the suites
 /// incompatible with `SignatureAlgorithm` `sigalg` removed.
 pub fn reduce_given_sigalg(all: &[&'static SupportedCipherSuite],
-                           sigalg: &SignatureAlgorithm)
+                           sigalg: SignatureAlgorithm)
                            -> Vec<&'static SupportedCipherSuite> {
     all.iter()
-        .filter(|&&suite| suite.sign == SignatureAlgorithm::Anonymous || &suite.sign == sigalg)
+        .filter(|&&suite| suite.sign == SignatureAlgorithm::Anonymous || suite.sign == sigalg)
         .cloned()
         .collect()
 }
