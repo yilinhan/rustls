@@ -110,11 +110,11 @@ impl ServerCertVerifier for WebPKIVerifier {
     fn verify_server_cert(&self,
                           roots: &RootCertStore,
                           presented_certs: &[Certificate],
-                          dns_name: webpki::DNSNameRef,
+                          _dns_name: webpki::DNSNameRef,
                           ocsp_response: &[u8]) -> Result<ServerCertVerified, TLSError> {
         let (cert, chain, trustroots) = prepare(roots, presented_certs)?;
         let now = (self.time)()?;
-        let cert = cert.verify_is_valid_tls_server_cert(SUPPORTED_SIG_ALGS,
+        let _cert = cert.verify_is_valid_tls_server_cert(SUPPORTED_SIG_ALGS,
                 &webpki::TLSServerTrustAnchors(&trustroots), &chain, now)
             .map_err(TLSError::WebPKIError)
             .map(|_| cert)?;
@@ -123,9 +123,13 @@ impl ServerCertVerifier for WebPKIVerifier {
             debug!("Unvalidated OCSP response: {:?}", ocsp_response.to_vec());
         }
 
-        cert.verify_is_valid_for_dns_name(dns_name)
+        #[cfg(not(feature = "no_sni_check"))]
+        return _cert.verify_is_valid_for_dns_name(_dns_name)
             .map_err(TLSError::WebPKIError)
-            .map(|_| ServerCertVerified::assertion())
+            .map(|_| ServerCertVerified::assertion());
+
+        #[cfg(feature = "no_sni_check")]
+        return Ok(ServerCertVerified::assertion());
     }
 }
 

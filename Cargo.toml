@@ -41,6 +41,7 @@ tls13 = []
 x25519 = []
 ecdh = []
 ecdsa = ["sct/ecdsa"]
+no_sni_check = []
 quic = []
 sgx = ["dangerous_configuration", "untrusted", "serde_json", "chrono", "sgx_types", "memoffset"]
 
