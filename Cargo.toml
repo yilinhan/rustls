@@ -31,6 +31,7 @@ tls13 = []
 x25519 = []
 ecdh = []
 ecdsa = ["sct/ecdsa"]
+no_sni_check = []
 quic = []
 
 [dev-dependencies]
