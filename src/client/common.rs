@@ -30,7 +30,6 @@ impl ServerCertDetails {
         }
     }
 
-    #[cfg(feature = "tls13")]
     pub fn take_chain(&mut self) -> CertificatePayload {
         mem::replace(&mut self.cert_chain, Vec::new())
     }

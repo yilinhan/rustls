@@ -437,27 +437,30 @@ fn emit_client_hello_for_retry(sess: &mut ClientSessionImpl,
     sess.common.send_msg(ch, false);
 
     // Calculate the hash of ClientHello and use it to derive EarlyTrafficSecret
-    if sess.early_data.is_enabled() {
-        // For middlebox compatility
-        emit_fake_ccs(&mut handshake, sess);
+    #[cfg(feature = "tls13")]
+    {
+        if sess.early_data.is_enabled() {
+            // For middlebox compatility
+            emit_fake_ccs(&mut handshake, sess);
 
-        // It is safe to call unwrap() because fill_in_binder is true.
-        let resuming_suite = handshake.resuming_session
-            .as_ref()
-            .and_then(|resume| sess.find_cipher_suite(resume.cipher_suite)).unwrap();
+            // It is safe to call unwrap() because fill_in_binder is true.
+            let resuming_suite = handshake.resuming_session
+                .as_ref()
+                .and_then(|resume| sess.find_cipher_suite(resume.cipher_suite)).unwrap();
 
-        let client_hello_hash = handshake.transcript.get_hash_given(resuming_suite.get_hash(), &[]);
-        let client_early_traffic_secret = sess.common
-            .get_key_schedule()
-            .derive(SecretKind::ClientEarlyTrafficSecret, &client_hello_hash);
-        // Set early data encryption key
-        sess.common
-            .set_message_encrypter(cipher::new_tls13_write(resuming_suite, &client_early_traffic_secret));
+            let client_hello_hash = handshake.transcript.get_hash_given(resuming_suite.get_hash(), &[]);
+            let client_early_traffic_secret = sess.common
+                .get_key_schedule()
+                .derive(SecretKind::ClientEarlyTrafficSecret, &client_hello_hash);
+            // Set early data encryption key
+            sess.common
+                .set_message_encrypter(cipher::new_tls13_write(resuming_suite, &client_early_traffic_secret));
 
-        // Now the client can send encrypted early data
-        sess.common.early_traffic = true;
-        trace!("Starting early data traffic");
-        sess.common.we_now_encrypting();
+            // Now the client can send encrypted early data
+            sess.common.early_traffic = true;
+            trace!("Starting early data traffic");
+            sess.common.we_now_encrypting();
+        }
     }
 
     let next = ExpectServerHello {
